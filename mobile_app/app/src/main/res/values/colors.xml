@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <color name="colorPrimary">#6200EE</color>  <!-- This is a purple color, feel free to change it -->
+
+    <color name="light_green">#E0F7E1</color> <!-- Very light green -->
+    <color name="light_yellow">#FFF9C4</color> <!-- Very light yellow -->
+    <color name="light_red">#F493A2</color> <!-- Very light red -->
+
+    <!-- Line colors for different temperature ranges -->
+    <color name="green">#2cff21</color> <!-- Green for safe range -->
+    <color name="yellow">#faf60f</color> <!-- Yellow for moderate range -->
+    <color name="red">#ff0f0f</color> <!-- Red for danger range -->
+
+    <!-- background colours -->
+    <color name="background_warning_white">#FFFFFF</color>
+</resources>
