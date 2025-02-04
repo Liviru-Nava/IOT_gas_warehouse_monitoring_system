@@ -10,6 +10,7 @@
     <color name="light_red">#F493A2</color> <!-- Very light red -->
 
     <!-- Line colors for different temperature ranges -->
+    <color name="blue">#00FFE9</color> <!-- blue for cold range -->
     <color name="green">#2cff21</color> <!-- Green for safe range -->
     <color name="yellow">#faf60f</color> <!-- Yellow for moderate range -->
     <color name="red">#ff0f0f</color> <!-- Red for danger range -->

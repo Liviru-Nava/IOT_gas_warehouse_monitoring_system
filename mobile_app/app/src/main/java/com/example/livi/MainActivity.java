@@ -36,6 +36,7 @@ import android.media.MediaPlayer;
 
 public class MainActivity extends AppCompatActivity {
 
+    //variables
     private LineChart lineChartTemperature, lineChartHumidity;
     private TextView tvTempValue, tvHumidityValue, tvGasLevel, tvFanStatus, tvFlameStatus;
     private ImageView imgFlameStatus, imgFanStatus;
@@ -50,6 +51,17 @@ public class MainActivity extends AppCompatActivity {
     private int timeIndexTemperature = 0;
     private int timeIndexHumidity = 0;
     private MediaPlayer mediaPlayer;
+    private Handler handler = new Handler();
+    private Runnable updateChartRunnable;
+    private float lastTemperature = 0;
+    private float lastHumidity = 0;
+
+
+    //try something new
+    //add the temperature and flame status variable here and set it to true or false based on the value from the firebase realtime database
+    //while true, play alarm and show warning till false
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,11 +89,30 @@ public class MainActivity extends AppCompatActivity {
 //        databaseReferenceFlame = FirebaseDatabase.getInstance().getReference().child("Sensor/flameDetected");
 //        databaseReferenceFans = FirebaseDatabase.getInstance().getReference().child("Actuator/fanState");
 
+        //firebase database references
         databaseReferenceTemperature = FirebaseDatabase.getInstance().getReference().child("sensor_data/temperature");
         databaseReferenceHumidity = FirebaseDatabase.getInstance().getReference().child("sensor_data/humidity");
         databaseReferenceGasLevel = FirebaseDatabase.getInstance().getReference().child("sensor_data/gas_level_percent");
         databaseReferenceFlame = FirebaseDatabase.getInstance().getReference().child("sensor_data/flame_detected");
         databaseReferenceFans = FirebaseDatabase.getInstance().getReference().child("sensor_data/fans_status");
+
+
+        // Define the runnable to update the chart periodically
+        updateChartRunnable = new Runnable() {
+            @Override
+            public void run() {
+                // Add the last known values to the chart
+                addTemperatureEntry(lastTemperature);
+                addHumidityEntry(lastHumidity);
+
+                // Schedule the runnable to run again after 1 second
+                handler.postDelayed(this, 1000); // Update every 1 second
+            }
+        };
+
+        // Start the periodic updates
+        handler.post(updateChartRunnable);
+
 
         // Temperature data listener
         databaseReferenceTemperature.addValueEventListener(new ValueEventListener() {
@@ -89,16 +120,18 @@ public class MainActivity extends AppCompatActivity {
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (snapshot.exists()) {
                     float temperature = snapshot.getValue(Float.class);
-                    addTemperatureEntry(temperature);
+                    lastTemperature = temperature; // Update the last known temperature
 
                     //show the warning box if the temperature increases above 80
-                    if(temperature > 80){
+                    if(temperature >= 36){
                         // Show the dialog if the temperature exceeds 80
                         showCustomWarningDialog("Temperature is reaching CRITICAL levels");
+                        playAlarm();
+                    }else{
+                        stopAlarm();
                     }
                 }
             }
-
             @Override
             public void onCancelled(@NonNull DatabaseError error) {
                 // Handle database error
@@ -111,7 +144,7 @@ public class MainActivity extends AppCompatActivity {
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (snapshot.exists()) {
                     float humidity = snapshot.getValue(Float.class);
-                    addHumidityEntry(humidity);
+                    lastHumidity = humidity;
                 }
             }
 
@@ -129,7 +162,7 @@ public class MainActivity extends AppCompatActivity {
                     float gasLevel = snapshot.getValue(Float.class);
                     updateGasLevelEntry(gasLevel);
 
-                    if (gasLevel > 60) {
+                    if (gasLevel > 63.70) {
                         showCustomWarningDialog("Gas Level is reaching CRITICAL Levels!");
                         playAlarm();
                     }else{
@@ -154,9 +187,12 @@ public class MainActivity extends AppCompatActivity {
                     if (flameDetected) {
                         imgFlameStatus.setImageResource(R.drawable.flame_yes_removebg_preview);
                         tvFlameStatus.setText("Fire detected!");
+                        showCustomWarningDialog("Fire ALERT!");
+                        playAlarm();
                     } else {
                         imgFlameStatus.setImageResource(R.drawable.flame_no);
                         tvFlameStatus.setText("No Fire detected!");
+                        stopAlarm();
                     }
                 }
             }
@@ -167,7 +203,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        //fan status
+        //fan status listener
         databaseReferenceFans.addValueEventListener(new ValueEventListener() {
             @SuppressLint("SetTextI18n")
             @Override
@@ -190,6 +226,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    //initialise the temperature chart
     private void initializeTemperatureChart() {
         lineEntriesTemperature = new ArrayList<>();
         lineDataSetTemperature = new LineDataSet(lineEntriesTemperature, "Temperature");
@@ -208,12 +245,13 @@ public class MainActivity extends AppCompatActivity {
         xAxis.setDrawGridLines(false);
 
         lineChartTemperature.getAxisLeft().setAxisMinimum(0f);
-        lineChartTemperature.getAxisLeft().setAxisMaximum(120f);
+        lineChartTemperature.getAxisLeft().setAxisMaximum(60f);
         lineChartTemperature.getAxisLeft().setTextColor(getResources().getColor(R.color.white));
         lineChartTemperature.getAxisRight().setEnabled(false);
         lineChartTemperature.invalidate();
     }
 
+    //initialise the humidity chart
     private void initializeHumidityChart() {
         lineEntriesHumidity = new ArrayList<>();
         lineDataSetHumidity = new LineDataSet(lineEntriesHumidity, "Humidity");
@@ -238,6 +276,7 @@ public class MainActivity extends AppCompatActivity {
         lineChartHumidity.invalidate();
     }
 
+    //initialise the gas level chart
     private void initializeGasLevelChart() {
         // Create a single bar entry for gas level
         barEntryGasLevel = new BarEntry(0f, 0f); // Initially set to 0
@@ -293,13 +332,16 @@ public class MainActivity extends AppCompatActivity {
         tvTempValue.setText(String.format("%.2f°C", temperature));
 
         // Change the chart's background color and line properties based on temperature range
-        if (temperature >= 0 && temperature <= 50) {
+        if(temperature >= 0 && temperature < 25){
+            lineDataSetTemperature.setColor(getResources().getColor(R.color.blue));
+            lineDataSetTemperature.setLineWidth(3f);
+        } else if (temperature >= 25 && temperature < 32) {
             lineDataSetTemperature.setColor(getResources().getColor(R.color.green));
             lineDataSetTemperature.setLineWidth(3f);
-        } else if (temperature >= 51 && temperature <= 70) {
+        } else if (temperature >= 32 && temperature < 36) {
             lineDataSetTemperature.setColor(getResources().getColor(R.color.yellow));
             lineDataSetTemperature.setLineWidth(4f);
-        } else if (temperature >= 71 && temperature <= 120) {
+        } else if (temperature >= 36 && temperature <= 50) {
             lineDataSetTemperature.setColor(getResources().getColor(R.color.red));
             lineDataSetTemperature.setLineWidth(5f);
         }

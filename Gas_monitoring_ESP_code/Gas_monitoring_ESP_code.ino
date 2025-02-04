@@ -5,10 +5,10 @@
 #include "addons/RTDBHelper.h"
 
 // Wi-Fi and Firebase configuration
-#define WIFI_SSID "" // Your WiFi SSID
-#define WIFI_PASSWORD "" // Your WiFi Password
-#define API_KEY "" // Firebase API Key
-#define DATABASE_URL "" // Firebase Database URL
+#define WIFI_SSID "Dialog 4G" // Your WiFi SSID
+#define WIFI_PASSWORD "9RYA9F1D9E5" // Your WiFi Password
+#define API_KEY "AIzaSyC4wyM5AqrC_4GX0KPtfUObhmOx7g_ad8w" // Firebase API Key
+#define DATABASE_URL "https://liviru-test-default-rtdb.asia-southeast1.firebasedatabase.app/" // Firebase Database URL
 
 FirebaseData fbdo;
 FirebaseAuth auth;
@@ -27,7 +27,7 @@ bool flameDetected; // Store flame detection as a boolean
 DHT dht(DHTPIN, DHT11);
 
 // Actuator pins
-#define GREEN_LED_PIN 16
+#define GREEN_LED_PIN 33
 #define RED_LED_PIN 17
 #define FAN_PIN 18
 #define BUZZER_PIN 19
@@ -35,16 +35,18 @@ DHT dht(DHTPIN, DHT11);
 #define BLUE_LED_PIN 22 // blue led for indicate everything okay
 
 // Threshold values
-#define TEMP_THRESHOLD 30.0   // Temperature threshold to turn on the fan
+#define TEMP_THRESHOLD 36.0   // Temperature threshold to turn on the fan
 #define MQ2_THRESHOLD 1700     // MQ2 value to detect gas/smoke
 
 float mapGasPercentage(int rawValue) {
-  // Constrain the raw value between 900 and 4095
-  int constrainedValue = constrain(rawValue, 900, 4095);
+  int constrainedValue = constrain(rawValue, 300, 2500);
   
-  // Map the value to percentage (0-100)
-  float percentage = map(constrainedValue, 900, 4095, 0, 100);
-  
+  // Convert to float before mapping
+  float percentage = (float)(constrainedValue - 300) / (2500 - 300) * 100.0;
+
+  // Round to two decimal places
+  percentage = round(percentage * 100.0) / 100.0;
+
   return percentage;
 }
 
@@ -100,7 +102,7 @@ void setup() {
 }
 
 void loop() {
-  if (Firebase.ready() && signupOk && (millis() - sendDataPrevMillis > 2000 || sendDataPrevMillis == 0)) {
+  if (Firebase.ready() && signupOk && (millis() - sendDataPrevMillis > 1000 || sendDataPrevMillis == 0)) {
     sendDataPrevMillis = millis();
 
     // Read sensor data
@@ -109,61 +111,76 @@ void loop() {
     mq2Value = analogRead(MQ2PIN);
     flameDetected = (digitalRead(FLAME_PIN) == LOW); // Flame detected if LOW
 
+    Serial.printf("Temp: %.2f°C\n", temperature);
+    Serial.printf("Humidity: %.2f%%\n", humidity);
+    Serial.printf("Gas: %d\n", mq2Value);
+    Serial.printf("Flame detected: %s\n", flameDetected ? "true" : "false");
+
+    // ** Reset all actuators first **
+    digitalWrite(GREEN_LED_PIN, LOW);
+    digitalWrite(RED_LED_PIN, LOW);
+    digitalWrite(BLUE_LED_PIN, LOW);
+    digitalWrite(ORANGE_LED_PIN, LOW);
+    digitalWrite(FAN_PIN, HIGH); // Default to OFF
+
+    bool fanState = false;
+
+    // ** Priority Order: Flame > Gas > Temperature **
     
-
-    // Control actuators based on sensor data
-
-    bool fanState = false; // Initialize fan state to OFF
-
-    if (!isnan(temperature) && temperature > TEMP_THRESHOLD) {
-      digitalWrite(FAN_PIN, LOW); // Turn on the fan
-      digitalWrite(BLUE_LED_PIN, HIGH); // Turn on the blue LED
-      fanState = true; // Fan is ON
-      Serial.println("Fan ON and Blue LED ON");
-
-    } else {
-      digitalWrite(FAN_PIN, HIGH); // Turn off the fan
-      digitalWrite(BLUE_LED_PIN, LOW); // Turn off the blue LED
-      fanState = false; // Fan is OFF
-      Serial.println("Fan OFF and Blue LED OFF");
-
+    if (flameDetected) {  
+      // ** Flame detected **
+      digitalWrite(ORANGE_LED_PIN, HIGH); // Orange LED ON
+      digitalWrite(RED_LED_PIN, HIGH);    // Red LED ON
+      digitalWrite(FAN_PIN, HIGH);        // Fan OFF
+      digitalWrite(GREEN_LED_PIN, LOW);   // Green OFF
+      digitalWrite(BLUE_LED_PIN, LOW);    // Blue OFF
+      Serial.println("Flame detected! Orange LED ON, Fan OFF");
+    } 
+    else if (mq2Value > MQ2_THRESHOLD) {  
+      // ** Gas detected **
+      digitalWrite(FAN_PIN, LOW);         // Fan ON
+      digitalWrite(BLUE_LED_PIN, HIGH);   // Blue LED ON
+      digitalWrite(RED_LED_PIN, HIGH);    // Red LED ON
+      digitalWrite(GREEN_LED_PIN, LOW);   // Green OFF
+      fanState = true;
+      Serial.println("Gas detected! Fan ON, Blue ON, Red ON");
+    } 
+    else if (!isnan(temperature) && temperature > TEMP_THRESHOLD) {  
+      // ** Temperature too high **
+      digitalWrite(FAN_PIN, LOW);         // Fan ON
+      digitalWrite(BLUE_LED_PIN, HIGH);   // Blue LED ON
+      digitalWrite(RED_LED_PIN, HIGH);    // Red LED ON
+      digitalWrite(GREEN_LED_PIN, LOW);   // Green OFF
+      fanState = true;
+      Serial.println("High Temperature! Fan ON, Blue ON, Red ON");
     }
-
-    if (mq2Value > MQ2_THRESHOLD) {
-      digitalWrite(RED_LED_PIN, HIGH);  // Turn on the red LED for gas detection
+    else if((!isnan(temperature) && temperature > TEMP_THRESHOLD) && (mq2Value > MQ2_THRESHOLD) && (flameDetected)){
+      digitalWrite(FAN_PIN, LOW);
+      digitalWrite(RED_LED_PIN, HIGH);
+      digitalWrite(ORANGE_LED_PIN, HIGH);
+      digitalWrite(BLUE_LED_PIN, HIGH);
       digitalWrite(GREEN_LED_PIN, LOW);
-      digitalWrite(BUZZER_PIN, HIGH);  // Turn on the buzzer
-      Serial.println("Gas detected!");
-    } else {
-      digitalWrite(RED_LED_PIN, LOW);   // Turn off the red LED
-      digitalWrite(GREEN_LED_PIN, HIGH);
-      digitalWrite(BUZZER_PIN, LOW);   // Turn off the buzzer
+      fanState = true;
+      Serial.println("DANGER, WAREHOUSE IN DANGER, FAN ON, RED LED ON, ORANGE LED ON, BLUE LED ON!");
+    } 
+    else {  
+      // ** Normal Condition (Everything is OK) **
+      digitalWrite(GREEN_LED_PIN, HIGH);  // Green LED ON
+      digitalWrite(BLUE_LED_PIN, LOW);    // Blue LED OFF
+      digitalWrite(RED_LED_PIN, LOW);     // Red LED OFF
+      digitalWrite(FAN_PIN, HIGH);        // Fan OFF
+      Serial.println("Normal Condition. Green ON, Everything Else OFF");
     }
 
-    if (flameDetected) {
-      digitalWrite(ORANGE_LED_PIN, HIGH); // Turn on the orange LED for flame detection
-      Serial.println("Flame detected!");
-    } else {
-      digitalWrite(ORANGE_LED_PIN, LOW);  // Turn off the orange LED
-      Serial.println("No flame detected");
-    }
+    float gasPercentage = mapGasPercentage(mq2Value);
 
+    // ** Force update Firebase even if values are the same **
+    Firebase.RTDB.setFloat(&fbdo, "sensor_data/temperature", temperature);
+    Firebase.RTDB.setFloat(&fbdo, "sensor_data/humidity", humidity);
+    Firebase.RTDB.setFloat(&fbdo, "sensor_data/gas_level_percent", gasPercentage);
+    Firebase.RTDB.setBool(&fbdo, "sensor_data/flame_detected", flameDetected);
+    Firebase.RTDB.setBool(&fbdo, "sensor_data/fans_status", fanState);
 
-    float gasPercentage = mapGasPercentage(mq2Value);  // Convert raw value to percentage
-
-    // Send data to Firebase
-    if (Firebase.RTDB.setFloat(&fbdo, "sensor_data/temperature", temperature) &&
-        Firebase.RTDB.setFloat(&fbdo, "sensor_data/humidity", humidity) &&
-        // Firebase.RTDB.setInt(&fbdo, "Sensor/mq2Value", mq2Value) &&
-        Firebase.RTDB.setFloat(&fbdo, "sensor_data/gas_level_percent", gasPercentage) &&
-        Firebase.RTDB.setBool(&fbdo, "sensor_data/flame_detected", flameDetected) &&
-        Firebase.RTDB.setBool(&fbdo, "sensor_data/fans_status", fanState)) { // Add fan state
-      
-      Serial.println("Data sent successfully:");
-      Serial.printf("Temperature: %.2f°C, Humidity: %.2f%%, MQ2: %d, Flame Detected: %s\n", 
-                    temperature, humidity, mq2Value, flameDetected ? "true" : "false" ,fanState ? "true" : "false");
-    } else {
-      Serial.println("Failed to send data: " + fbdo.errorReason());
-    }
+    Serial.println("Data sent to Firebase (forced update).");
   }
 }
