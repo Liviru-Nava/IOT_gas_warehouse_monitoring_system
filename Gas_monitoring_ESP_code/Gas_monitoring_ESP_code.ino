@@ -35,7 +35,7 @@ DHT dht(DHTPIN, DHT11);
 #define BLUE_LED_PIN 22 // blue led for indicate everything okay
 
 // Threshold values
-#define TEMP_THRESHOLD 36.0   // Temperature threshold to turn on the fan
+#define TEMP_THRESHOLD 28.0   // Temperature threshold to turn on the fan
 #define MQ2_THRESHOLD 1700     // MQ2 value to detect gas/smoke
 
 float mapGasPercentage(int rawValue) {
