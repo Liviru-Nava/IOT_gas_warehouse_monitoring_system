@@ -57,12 +57,6 @@ public class MainActivity extends AppCompatActivity {
     private float lastHumidity = 0;
 
 
-    //try something new
-    //add the temperature and flame status variable here and set it to true or false based on the value from the firebase realtime database
-    //while true, play alarm and show warning till false
-
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -123,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
                     lastTemperature = temperature; // Update the last known temperature
 
                     //show the warning box if the temperature increases above 80
-                    if(temperature >= 36){
+                    if(temperature >= 28){
                         // Show the dialog if the temperature exceeds 80
                         showCustomWarningDialog("Temperature is reaching CRITICAL levels");
                         playAlarm();
